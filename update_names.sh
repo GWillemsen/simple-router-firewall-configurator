@@ -23,13 +23,11 @@ get_node_config() {
     NAME_VAR="${PREFIX}__$1__name"
     ADDRESS_VAR="${PREFIX}__$1__address"
     MAC_VAR="${PREFIX}__$1__mac"
-    INTERNET_VAR="${PREFIX}__$1__internet"
     PORTS_VAR="${PREFIX}__$1__ports"
     PUBLIC_VAR="${PREFIX}__$1__public"
     NAME=${!NAME_VAR}
     ADDRESS=${!ADDRESS_VAR}
     MAC=${!MAC_VAR}
-    INTERNET=${!INTERNET_VAR}
     PORTS=${!PORTS_VAR%\]} 
     PORTS=(${PORTS#\[})
     PUBLIC=${!PUBLIC_VAR}
@@ -166,7 +164,6 @@ do
         echo N: ${NAME}
         echo A: ${ADDRESS}
         echo M: ${MAC}
-        echo I: ${INTERNET}
         echo P: ${PORTS}
     fi
 
