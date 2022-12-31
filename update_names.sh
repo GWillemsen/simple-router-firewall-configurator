@@ -1,9 +1,6 @@
 #!/bin/bash
 DHCP_LEASE_TIME="12h"
 IPTABLES=iptables
-LOCAL_IP="192.168.1.0/24"
-PUB_IF=eth0
-PRI_IF=eth1
 set -e
 
 # Include init parser
@@ -28,12 +25,14 @@ get_node_config() {
     MAC_VAR="${PREFIX}__$1__mac"
     INTERNET_VAR="${PREFIX}__$1__internet"
     PORTS_VAR="${PREFIX}__$1__ports"
+    PUBLIC_VAR="${PREFIX}__$1__public"
     NAME=${!NAME_VAR}
     ADDRESS=${!ADDRESS_VAR}
     MAC=${!MAC_VAR}
     INTERNET=${!INTERNET_VAR}
     PORTS=${!PORTS_VAR%\]} 
     PORTS=(${PORTS#\[})
+    PUBLIC=${!PUBLIC_VAR}
 }
 
 add_to_hosts() {
@@ -42,6 +41,14 @@ add_to_hosts() {
 
     if [ $DEBUG == "1" ]; then
         echo "$STR"
+    fi
+
+    if [ $PUBLIC == "1" ]; then
+        STR="$PUBLIC_IP $NAME.$DOMAIN"
+        append_if_not_present "$STR" "$HOSTS_FILE"
+        if [ $DEBUG == "1" ]; then
+            echo "$STR"
+        fi
     fi
 }
 
@@ -110,6 +117,14 @@ set_default_iptables_rules() {
         # Allow DNS responses on priv_if
         $IPTABLES -A OUTPUT -o ${PRI_IF} -p udp --sport 53 -j ACCEPT
         $IPTABLES -A OUTPUT -o ${PRI_IF} -p tcp --sport 53 -j ACCEPT
+
+        # Accept DNS requests on public if
+        $IPTABLES -A INPUT -i ${PUB_IF} -p udp --dport 53 -j ACCEPT
+        $IPTABLES -A INPUT -i ${PUB_IF} -p tcp --dport 53 -j ACCEPT
+
+        # Allow DNS responses on public if
+        $IPTABLES -A OUTPUT -o ${PUB_IF} -p udp --sport 53 -j ACCEPT
+        $IPTABLES -A OUTPUT -o ${PUB_IF} -p tcp --sport 53 -j ACCEPT
     }
 
     configure_nat() {
