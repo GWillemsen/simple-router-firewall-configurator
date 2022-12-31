@@ -13,7 +13,7 @@ append_if_not_present() {
     if [ -e "$2" ]; then
         set +e
         grep -e "$1" "$2"
-        APP=$0
+        APP=$?
     else
         APP=1
     fi
