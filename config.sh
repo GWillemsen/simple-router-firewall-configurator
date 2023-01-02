@@ -3,8 +3,10 @@ export HOSTS_FILE=./hosts
 export DHCP_HOSTS_FILE=./hosts.dhcp
 export DOMAIN=internal
 export DEBUG=0
-export LOCAL_IP="192.168.1.0/24"
+export LOCAL_IP="192.168.1.1"
+export LOCAL_NETWORK="192.168.1.0/24"
 export PUBLIC_IP="192.168.68.240"
+export PUBLIC_NETWORK="192.168.68.0/24"
 export PUB_IF=eth0
 export PRI_IF=eth1
 
