@@ -58,53 +58,56 @@ add_dhcp_host() {
     fi
 }
 
+add_iprule() {
+    ARG="$@"
+    TCP_ARG="${ARG//-p PROTO/-p tcp}"
+    UDP_ARG="${ARG//-p PROTO/-p udp}"
+    if [ "$TCP_ARG" == "$UDP_ARG" ]; then
+        $IPTABLES $ARG
+    else
+        $IPTABLES $TCP_ARG
+        $IPTABLES $UDP_ARG
+    fi
+}
+
 generate_iptable_rules() {
     for PORT in "${PORTS[@]}"
     do
         # Allow incoming connections on the port
         # $IPTABLES -A INPUT -i $PUB_IF -p tcp --dport $PORT -m state --state NEW,ESTABLISHED -j ACCEPT
-        $IPTABLES -A INPUT -p tcp --dport $PORT -j ACCEPT
-        $IPTABLES -A INPUT -p udp --dport $PORT -j ACCEPT
+        add_iprule -A INPUT -p PROTO --dport $PORT -j ACCEPT
 
         # Allow responses on the port. for the public network it needs to be a established connection.
         # Locally also new connection requests are allowed (for when someone uses the internal IP instead of
         # public)
-        $IPTABLES -A OUTPUT -o $PUB_IF -p tcp --dport $PORT -m state --state ESTABLISHED -j ACCEPT
-        $IPTABLES -A OUTPUT -o $PRI_IF -p tcp --dport $PORT -m state --state NEW,ESTABLISHED -j ACCEPT
-        $IPTABLES -A OUTPUT -o $PUB_IF -p udp --dport $PORT -m state --state ESTABLISHED -j ACCEPT
-        $IPTABLES -A OUTPUT -o $PRI_IF -p udp --dport $PORT -m state --state NEW,ESTABLISHED -j ACCEPT
+        add_iprule -A OUTPUT -o $PUB_IF -p PROTO --dport $PORT -m state --state ESTABLISHED -j ACCEPT
+        add_iprule -A OUTPUT -o $PRI_IF -p PROTO --dport $PORT -m state --state NEW,ESTABLISHED -j ACCEPT
         
         # Forward the packets internally when the input has accepted them
         # This applies both for packets from the outside as internal.
-        $IPTABLES -A FORWARD -p tcp --dport $PORT -d $ADDRESS -j ACCEPT
-        $IPTABLES -A FORWARD -p udp --dport $PORT -d $ADDRESS -j ACCEPT
+        add_iprule -A FORWARD -p PROTO --dport $PORT -d $ADDRESS -j ACCEPT
 
         # Reroute packates from the outside world to the respective ip & port if they are going to that port on routers' port
-        $IPTABLES -t nat -A PREROUTING -i $PUB_IF -p tcp --dport $PORT -j DNAT --to-destination $ADDRESS:$PORT
-        $IPTABLES -t nat -A PREROUTING -i $PUB_IF -p udp --dport $PORT -j DNAT --to-destination $ADDRESS:$PORT
+        add_iprule -t nat -A PREROUTING -i $PUB_IF -p PROTO --dport $PORT -j DNAT --to-destination $ADDRESS:$PORT
         
         # Hairpin NAT part 1.
         # If the destination is ourselfs but using the public IP then do an immediate destination rewrite.
-        $IPTABLES -t nat -A PREROUTING -i $PRI_IF -p tcp -d $PUBLIC_IP --dport $PORT -j DNAT --to-destination $ADDRESS:$PORT
-        $IPTABLES -t nat -A PREROUTING -i $PRI_IF -p udp -d $PUBLIC_IP --dport $PORT -j DNAT --to-destination $ADDRESS:$PORT
+        add_iprule -t nat -A PREROUTING -i $PRI_IF -p PROTO -d $PUBLIC_IP --dport $PORT -j DNAT --to-destination $ADDRESS:$PORT
         
         # Hairpin NAT part 2.
         # When the packet has been rerouted to correct local IP then if the source IP was also a local IP then masquarade the 
         # source IP otherwise the original sender gets confused because the src ip would be different than the one send.
-        $IPTABLES -t nat -A POSTROUTING -s $LOCAL_NETWORK -o $PRI_IF -p tcp --dport $PORT -j MASQUERADE
-        $IPTABLES -t nat -A POSTROUTING -s $LOCAL_NETWORK -o $PRI_IF -p udp --dport $PORT -j MASQUERADE
+        add_iprule -t nat -A POSTROUTING -s $LOCAL_NETWORK -o $PRI_IF -p PROTO --dport $PORT -j MASQUERADE
     done
 }
 
 set_default_iptables_rules() {
     configure_self_instatiated_connections() {
         # Allow new outgoing connections
-        $IPTABLES -A OUTPUT -o $PUB_IF -p tcp -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT
-        $IPTABLES -A OUTPUT -o $PUB_IF -p udp -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT
+        add_iprule -A OUTPUT -o $PUB_IF -p PROTO -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT
 
         # Allow incoming connections that we initiated.
-        $IPTABLES -A INPUT -i $PUB_IF -p tcp -m state --state ESTABLISHED,RELATED -j ACCEPT
-        $IPTABLES -A INPUT -i $PUB_IF -p udp -m state --state ESTABLISHED,RELATED -j ACCEPT
+        add_iprule -A INPUT -i $PUB_IF -p PROTO -m state --state ESTABLISHED,RELATED -j ACCEPT
     
         # If the packet is from the local network allow anything. We assume that our local network is kind of safe
         # and because we don't know yet if this is a packet that we have to route (NAT) to the outside or not.
@@ -132,20 +135,16 @@ set_default_iptables_rules() {
 
     configure_dns_protocol() {
         # Accept DNS requests on priv_if
-        $IPTABLES -A INPUT -i $PRI_IF -p udp --dport 53 -j ACCEPT
-        $IPTABLES -A INPUT -i $PRI_IF -p tcp --dport 53 -j ACCEPT
+        add_iprule -A INPUT -i $PRI_IF -p PROTO --dport 53 -j ACCEPT
 
         # Allow DNS responses on priv_if
-        $IPTABLES -A OUTPUT -o $PRI_IF -p udp --sport 53 -j ACCEPT
-        $IPTABLES -A OUTPUT -o $PRI_IF -p tcp --sport 53 -j ACCEPT
+        add_iprule -A OUTPUT -o $PRI_IF -p PROTO --sport 53 -j ACCEPT
 
         # Accept DNS requests on public if
-        $IPTABLES -A INPUT -i $PUB_IF -p udp --dport 53 -j ACCEPT
-        $IPTABLES -A INPUT -i $PUB_IF -p tcp --dport 53 -j ACCEPT
+        add_iprule -A INPUT -i $PUB_IF -p PROTO --dport 53 -j ACCEPT
 
         # Allow DNS responses on public if
-        $IPTABLES -A OUTPUT -o $PUB_IF -p udp --sport 53 -j ACCEPT
-        $IPTABLES -A OUTPUT -o $PUB_IF -p tcp --sport 53 -j ACCEPT
+        add_iprule -A OUTPUT -o $PUB_IF -p PROTO --sport 53 -j ACCEPT
     }
 
     configure_nat() {
