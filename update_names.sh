@@ -25,12 +25,14 @@ get_node_config() {
     MAC_VAR="${PREFIX}__$1__mac"
     PORTS_VAR="${PREFIX}__$1__ports"
     PUBLIC_VAR="${PREFIX}__$1__public"
+    ONLY_DNS_VAR="${PREFIX}__$1__only_dns"
     NAME=${!NAME_VAR}
     ADDRESS=${!ADDRESS_VAR}
     MAC=${!MAC_VAR}
     PORTS=${!PORTS_VAR%\]} 
     PORTS=(${PORTS#\[})
     PUBLIC=${!PUBLIC_VAR}
+    ONLY_DNS=${!ONLY_DNS_VAR}
 }
 
 add_to_hosts() {
@@ -70,11 +72,10 @@ add_iprule() {
     fi
 }
 
-generate_iptable_rules() {
+generate_iptable_portforward_rules() {
     for PORT in "${PORTS[@]}"
     do
         # Allow incoming connections on the port
-        # $IPTABLES -A INPUT -i $PUB_IF -p tcp --dport $PORT -m state --state NEW,ESTABLISHED -j ACCEPT
         add_iprule -A INPUT -p PROTO --dport $PORT -j ACCEPT
 
         # Allow responses on the port. for the public network it needs to be a established connection.
@@ -194,8 +195,11 @@ do
     fi
 
     add_to_hosts
-    add_dhcp_host
-    generate_iptable_rules
+
+    if [[ "$ONLY_DNS" == "0" || "$ONLY_DNS" == "" ]]; then
+        add_dhcp_host
+        generate_iptable_portforward_rules
+    fi
 done
 
 set_default_iptables_rules
