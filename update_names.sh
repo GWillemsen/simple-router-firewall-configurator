@@ -88,12 +88,14 @@ generate_iptable_portforward_rules() {
         # This applies both for packets from the outside as internal.
         add_iprule -A FORWARD -p PROTO --dport $PORT -d $ADDRESS -j ACCEPT
 
+        DEST_PORT=${PORT//:/-}
+
         # Reroute packates from the outside world to the respective ip & port if they are going to that port on routers' port
-        add_iprule -t nat -A PREROUTING -i $PUB_IF -p PROTO --dport $PORT -j DNAT --to-destination $ADDRESS:$PORT
+        add_iprule -t nat -A PREROUTING -i $PUB_IF -p PROTO --dport $PORT -j DNAT --to-destination $ADDRESS:$DEST_PORT
         
         # Hairpin NAT part 1.
         # If the destination is ourselfs but using the public IP then do an immediate destination rewrite.
-        add_iprule -t nat -A PREROUTING -i $PRI_IF -p PROTO -d $PUBLIC_IP --dport $PORT -j DNAT --to-destination $ADDRESS:$PORT
+        add_iprule -t nat -A PREROUTING -i $PRI_IF -p PROTO -d $PUBLIC_IP --dport $PORT -j DNAT --to-destination $ADDRESS:$DEST_PORT
         
         # Hairpin NAT part 2.
         # When the packet has been rerouted to correct local IP then if the source IP was also a local IP then masquarade the 
